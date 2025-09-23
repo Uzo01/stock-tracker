@@ -1,7 +1,7 @@
-# main.py
 import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
+import time
 
 def fetch_stock_data(ticker: str, period="1mo", interval="1d"):
     """
@@ -12,8 +12,18 @@ def fetch_stock_data(ticker: str, period="1mo", interval="1d"):
     :return: DataFrame with stock data
     """
     stock = yf.Ticker(ticker)
-    data = stock.history(period=period, interval=interval)
-    return data
+    for attempt in range(3):  # Try 3 times
+        try:
+            data = stock.history(period=period, interval=interval)
+            if not data.empty:
+                return data
+            else:
+                print(f"Empty data returned for {ticker}, retrying...")
+        except yfinance.exceptions.YFException as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            if attempt < 2:  # Wait before retrying
+                time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+    raise Exception(f"Failed to fetch data for {ticker} after 3 attempts")
 
 def plot_stock_data(data, ticker):
     """
@@ -30,13 +40,12 @@ def plot_stock_data(data, ticker):
 
 def main():
     ticker = input("Enter stock ticker (e.g., AAPL for Apple): ").upper()
-    data = fetch_stock_data(ticker)
-
-    if data.empty:
-        print(f"No data found for {ticker}")
-    else:
+    try:
+        data = fetch_stock_data(ticker)
         print("\nLatest data:\n", data.tail())  # Show last few rows
         plot_stock_data(data, ticker)
+    except Exception as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     main()
