@@ -46,25 +46,32 @@ def plot_stock_data(data_dict):
     plt.grid(True)
     plt.show()
 
-def check_price_alerts(data_dict):
-    """
-    Check if stock prices exceed hardcoded target prices and print alerts.
+
+def check_price_alerts(data_dict, target_prices):
+     """
+    Check if stock prices exceed inputted target prices above and below and print alerts.
     :param data_dict: Dictionary of ticker:DataFrame pairs
     """
-    default_targets = {"AAPL": 150, "JPM": 200}
-    for ticker in data_dict:
-        if ticker in default_targets:
-            latest_price = data_dict[ticker]['Close'].iloc[-1]
-            if latest_price > default_targets[ticker]:
-                print(f"Alert: {ticker} price above target {default_targets[ticker]}!")
+     for ticker in data_dict:
+        if ticker in target_prices:
+                    latest_price = data_dict[ticker]['Close'].iloc[-1]
+                    if latest_price > target_prices[ticker]:
+                        print(f"Alert: {ticker} price above target {target_prices[ticker]}!")
+                    elif latest_price < target_prices[ticker]:
+                        print(f"Alert: {ticker} price below target {target_prices[ticker]}!")
 def main():
     tickers_input = input("Enter stock tickers (e.g., AAPL JPM, separated by space): ").upper().split()
+    target_prices = {}
+    for ticker in tickers_input:
+        price = float(input(f"Enter target price for {ticker}: "))
+        target_prices[ticker] = price
+        
     try:
         data_dict = fetch_stock_data(tickers_input)
         if not data_dict:
             print("No data fetched for any ticker")
         else:
-            check_price_alerts(data_dict)  # Call your alert function
+            check_price_alerts(data_dict, target_prices)  # Call your alert function
             for ticker, data in data_dict.items():
                 print(f"\nLatest data for {ticker}:\n", data.tail())
             plot_stock_data(data_dict)
