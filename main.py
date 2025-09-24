@@ -2,6 +2,7 @@ import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
+from datetime import datetime
 
 def fetch_stock_data(tickers: list, period="1mo", interval="1d"):
     """
@@ -47,18 +48,36 @@ def plot_stock_data(data_dict):
     plt.show()
 
 
+
 def check_price_alerts(data_dict, target_prices):
      """
     Check if stock prices exceed inputted target prices above and below and print alerts.
     :param data_dict: Dictionary of ticker:DataFrame pairs
     """
+     alerts = []
      for ticker in data_dict:
         if ticker in target_prices:
                     latest_price = data_dict[ticker]['Close'].iloc[-1]
                     if latest_price > target_prices[ticker]:
-                        print(f"Alert: {ticker} price above target {target_prices[ticker]}!")
+                       alerts.append(f"Alert: {ticker} price above target {target_prices[ticker]}!")
                     elif latest_price < target_prices[ticker]:
-                        print(f"Alert: {ticker} price below target {target_prices[ticker]}!")
+                        alerts.append(f"Alert: {ticker} price below target {target_prices[ticker]}!")
+        return alerts
+
+def save_to_file(data_dict, target_prices, alerts):
+    """
+    Save alerts to a text file and stock data to a CSV file with timestamps.
+    :param data_dict: Dictionary of ticker:DataFrame pairs
+    :param target_prices: Dictionary of ticker:target_price pairs
+    :param alerts: List of alert messages
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open("alerts.txt", "a") as f:
+        for alert in alerts:
+            f.write(f"{timestamp}: {alerts}\n")
+    for ticker, data in data_dict.items():
+            data.tail().to_csv("data_csv", mode="a", header=(ticker==list(data_dict.keys())[0]))
+
 def main():
     tickers_input = input("Enter stock tickers (e.g., AAPL JPM, separated by space): ").upper().split()
     target_prices = {}
@@ -71,7 +90,8 @@ def main():
         if not data_dict:
             print("No data fetched for any ticker")
         else:
-            check_price_alerts(data_dict, target_prices)  # Call your alert function
+            alerts = check_price_alerts(data_dict, target_prices)# Call your alert function
+            save_to_file(data_dict, target_prices, alerts) # Call your save to file feature 
             for ticker, data in data_dict.items():
                 print(f"\nLatest data for {ticker}:\n", data.tail())
             plot_stock_data(data_dict)
