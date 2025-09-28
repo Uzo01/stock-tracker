@@ -5,7 +5,7 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
-import time  # needed for retry loop in fetch_stock_data
+import time
 
 class StockTrackerApp:
     def __init__(self):
@@ -15,12 +15,17 @@ class StockTrackerApp:
 
         tk.Label(self.root, text="Investment Backtest", font=("Arial", 16)).pack(pady=10)
         
+        self.asset_var = tk.StringVar()
+        self.asset_var.set("^GSPC")
+        tk.Label(self.root, text="Select Asset:").pack()
+        asset_options = ["^GSPC", "NQ=F", "BTC-USD", "^FTSE", "^FTMC", "^DJI", "GDXJ", "AAPL", "TSLA", "SHEL.L", "COP"]
+        tk.OptionMenu(self.root, self.asset_var, *asset_options).pack(pady=5)
+
         self.tree = ttk.Treeview(self.root, columns=("Month", "Amount"), show="headings")
         self.tree.heading("Month", text="Month")
         self.tree.heading("Amount", text="Amount (£)")
         self.tree.pack(pady=10, fill="both", expand=True)
 
-        # Pre-fill table with 12 months of £1000
         for month in range(1, 13):
             self.tree.insert("", "end", values=(month, 1000))
         self.tree.bind("<Double-1>", self.edit_cell)
@@ -43,7 +48,7 @@ class StockTrackerApp:
                 new_value = entry.get()
                 if new_value.replace(".", "").isdigit():
                     self.tree.set(item, column="#2", value=new_value)
-                entry.destroy()  # cleanup once done
+                entry.destroy()  # Cleanup once done
 
             entry.bind("<Return>", save_edit)
             entry.bind("<FocusOut>", save_edit)
@@ -54,7 +59,7 @@ class StockTrackerApp:
             messagebox.showerror("Error", "Please enter amounts for all 12 months.")
             return
         try:
-            self.backtest_df = backtest_investment(variable_amounts)
+            self.backtest_df = backtest_investment(variable_amounts, self.asset_var.get())
             messagebox.showinfo("Backtest", "Backtest completed! View results.")
         except ValueError as e:
             messagebox.showerror("Error", str(e))
@@ -87,20 +92,21 @@ class StockTrackerApp:
         else:
             messagebox.showwarning("No Results", "Run backtest first!")
 
-def backtest_investment(variable_amounts):
+def backtest_investment(variable_amounts, asset_ticker):
     """
-    Backtest variable monthly investments in S&P 500 over the past year.
+    Backtest variable monthly investments in a specified asset over the past year.
     :param variable_amounts: List of monthly investment amounts (£)
+    :param asset_ticker: Ticker symbol of the asset (e.g., '^GSPC', 'GLD', 'AAPL')
     :return: DataFrame with investment results
     """
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365)
     try:
-        sp500 = yf.download('^GSPC', start=start_date, end=end_date, progress=False)
-        if sp500.empty:
-            raise ValueError("No data available for S&P 500.")
+        asset_data = yf.download(asset_ticker, start=start_date, end=end_date, progress=False)
+        if asset_data.empty:
+            raise ValueError(f"No data available for {asset_ticker}.")
     except Exception as e:
-        raise ValueError(f"Failed to download data: {e}")
+        raise ValueError(f"Failed to download data for {asset_ticker}: {e}")
     
     months = len(variable_amounts)
     investment_dates = pd.date_range(start=start_date, periods=months, freq='MS')
@@ -110,22 +116,20 @@ def backtest_investment(variable_amounts):
     
     if not all(isinstance(x, (int, float)) and x > 0 for x in variable_amounts):
         raise ValueError("All investment amounts must be positive numbers.")
-    if months > len(sp500):
-        months = len(sp500)
+    if months > len(asset_data):
+        months = len(asset_data)
         investment_dates = investment_dates[:months]
     
     for i, date in enumerate(investment_dates[:months]):
-        # force scalar with float()
-        price = float(sp500['Close'].loc[:date].iloc[-1])
+        price = float(asset_data['Close'].loc[:date].iloc[-1])
         if price <= 0:
             print(f"Warning: Invalid price at {date}, skipping month.")
             continue
-
         amount = float(variable_amounts[i])
         shares_bought = amount / price
         total_shares += shares_bought
         total_invested += amount
-        latest_close = float(sp500['Close'].iloc[-1])
+        latest_close = float(asset_data['Close'].iloc[-1])
         current_value = total_shares * latest_close
         growth = current_value - total_invested
         portfolio.append({
@@ -156,7 +160,7 @@ def fetch_stock_data(tickers: list, period="1mo", interval="1d"):
                     break
                 else:
                     print(f"Empty data for {ticker}, retrying...")
-            except Exception as e:  # fallback, YFException isn’t always available
+            except Exception as e:
                 print(f"Attempt {attempt + 1} failed for {ticker}: {e}")
                 if attempt < 2:
                     time.sleep(2 ** attempt)
